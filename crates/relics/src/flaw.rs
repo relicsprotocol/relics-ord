@@ -1,0 +1,78 @@
+use super::*;
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum RelicFlaw {
+  InvalidEnshriningTermsMissingOrZeroCap,
+  InvalidEnshriningTermsAmountCapOverflow,
+  InvalidEnshriningTermsMissingPrice,
+  InvalidEnshriningTermsFixedPriceCapOverflow,
+  InvalidEnshriningTermsInvalidPriceFormula,
+  InvalidEnshriningTermsInvalidCapHierarchy,
+  InvalidEnshriningTermsMissingBlockCapWithTxCap,
+  InvalidEnshriningBoostInvalidRareBoost,
+  InvalidEnshriningBoostInvalidRareChance,
+  InvalidEnshriningBoostInvalidUltraRareBoost,
+  InvalidEnshriningBoostInvalidUltraRareChance,
+  InvalidEnshriningBoostChanceOrder,
+  InvalidEnshriningBoostMultiplierOrder,
+  InvalidEnshriningBoostRareAmountOverflow,
+  InvalidEnshriningBoostUltraRareAmountOverflow,
+  InvalidEnshriningMaxSupplyCalculation,
+  InvalidEnshriningSubsidyRules,
+  InvalidBaseTokenMint,
+  InvalidBaseTokenUnmint,
+  InvalidScript,
+  InvalidSwap,
+  Opcode,
+  TrailingIntegers,
+  TransferFlag,
+  TransferInvalidOrder,
+  TransferOutput,
+  TransferRelicId,
+  TruncatedField,
+  UnrecognizedEvenTag,
+  UnrecognizedFlag,
+  Varint,
+}
+
+impl Display for RelicFlaw {
+  fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    match self {
+      Self::InvalidEnshriningTermsMissingOrZeroCap => write!(f, "invalid enshrining: mint terms must have a non-zero cap"),
+      Self::InvalidEnshriningTermsAmountCapOverflow => write!(f, "invalid enshrining: amount * cap calculation overflowed in mint terms"),
+      Self::InvalidEnshriningTermsMissingPrice => write!(f, "invalid enshrining: price must be defined in mint terms"),
+      Self::InvalidEnshriningTermsFixedPriceCapOverflow => write!(f, "invalid enshrining: price * cap calculation overflowed for fixed price model"),
+      Self::InvalidEnshriningTermsInvalidPriceFormula => write!(f, "invalid enshrining: price formula parameters are invalid or cap is too large for formula"),
+      Self::InvalidEnshriningTermsInvalidCapHierarchy => write!(f, "invalid enshrining: cap hierarchy (cap >= block_cap >= tx_cap) violated"),
+      Self::InvalidEnshriningTermsMissingBlockCapWithTxCap => write!(f, "invalid enshrining: tx_cap is present, but block_cap is missing"),
+      Self::InvalidEnshriningBoostInvalidRareBoost => write!(f, "invalid enshrining: rare boost chance must be non-zero and multiplier greater than 1"),
+      Self::InvalidEnshriningBoostInvalidRareChance => write!(f, "invalid enshrining: rare chance must be max 999,999"),
+      Self::InvalidEnshriningBoostInvalidUltraRareBoost => write!(f, "invalid enshrining: ultra-rare boost chance must be non-zero and multiplier greater than 1"),
+      Self::InvalidEnshriningBoostInvalidUltraRareChance => write!(f, "invalid enshrining: ultra-rare chance must be max 999,999"),
+      Self::InvalidEnshriningBoostChanceOrder => write!(f, "invalid enshrining: ultra-rare boost chance must be less than rare boost chance"),
+      Self::InvalidEnshriningBoostMultiplierOrder => write!(f, "invalid enshrining: ultra-rare boost multiplier cap must be greater than rare boost multiplier cap"),
+      Self::InvalidEnshriningBoostRareAmountOverflow => write!(f, "invalid enshrining: amount * rare_multiplier_cap calculation overflowed"),
+      Self::InvalidEnshriningBoostUltraRareAmountOverflow => write!(f, "invalid enshrining: amount * ultra_rare_multiplier_cap calculation overflowed"),
+      Self::InvalidEnshriningMaxSupplyCalculation => write!(f, "invalid enshrining: max supply calculation failed (check for overflows or invalid term/boost values)"),
+      Self::InvalidEnshriningSubsidyRules => write!(f, "invalid enshrining: subsidy rules violated (subsidy requires zero price, or zero price requires subsidy)"),
+      Self::InvalidBaseTokenMint => write!(
+        f,
+        "invalid mint: to mint the base token eligible inscriptions must be burned"
+      ),
+      Self::InvalidBaseTokenUnmint => write!(f, "cannot unmint base token"),
+      Self::InvalidScript => write!(f, "invalid script in OP_RETURN"),
+      Self::InvalidSwap => write!(f, "invalid swap: input and output cannot be the same Relic"),
+      Self::Opcode => write!(f, "non-pushdata opcode in OP_RETURN"),
+      Self::TrailingIntegers => write!(f, "trailing integers in body"),
+      Self::TransferFlag => write!(f, "unrecognized flag in transfer"),
+      Self::TransferInvalidOrder => write!(f, "invalid transfer order"),
+      Self::TransferOutput => write!(f, "transfer output greater than transaction output count"),
+      Self::TransferRelicId => write!(f, "invalid relic ID in transfer"),
+      Self::TruncatedField => write!(f, "field with missing value"),
+      Self::UnrecognizedEvenTag => write!(f, "unrecognized even tag"),
+      Self::UnrecognizedFlag => write!(f, "unrecognized field"),
+      Self::Varint => write!(f, "invalid varint"),
+    }
+  }
+}

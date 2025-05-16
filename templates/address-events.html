@@ -1,0 +1,6 @@
+<h1>Events for: {{ self.address }}</h1>
+<ul>
+%% for event in &self.events {
+  <li>{{ event }}</li>
+%% }
+</ul>

@@ -1,0 +1,19 @@
+[book]
+title = "Relics Handbook"
+authors = ["Curvetoshi", "Relics Contributors"]
+language = "en"
+src = "src"
+
+[build]
+build-dir = "build"
+create-missing = false
+
+[output.html]
+cname = "docs.relicsprotocol.com"
+default-theme = "coal"
+git-repository-url = "https://github.com/relicsprotocol/relics-ord"
+preferred-dark-theme = "coal"
+additional-css = ["index.css"]
+
+[output.linkcheck]
+optional = true

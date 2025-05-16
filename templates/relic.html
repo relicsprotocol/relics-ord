@@ -1,0 +1,82 @@
+<h1>{{ self.entry.spaced_relic }}</h1>
+%% if let Some(thumb) = self.thumb {
+<div class="thumbnails">
+  {{ Iframe::thumbnail(thumb) }}
+</div>
+%% }
+<dl>
+  <dt>number</dt>
+  <dd>{{ self.entry.number }}</dd>
+  %% if self.entry.timestamp != 0 {
+  <dt>timestamp</dt>
+  <dd>
+    <time>{{ timestamp(self.entry.timestamp) }}</time>
+  </dd>
+  %% }
+  <dt>id</dt>
+  <dd>{{ self.id }}</dd>
+  <dt>deploy block</dt>
+  <dd><a href="/block/{{ self.id.block }}">{{ self.id.block }}</a></dd>
+  <dt>deploy transaction</dt>
+  <dd>{{ self.id.tx }}</dd>
+  <dt>mint</dt>
+%% if let Some(terms) = self.entry.mint_terms {
+  <dd>
+    <dl>
+      <dt>price</dt>
+%% if let Some(price) = terms.price {
+%%   if let PriceModel::Fixed(fixed) = price {
+      <dd>{{ self.relic(fixed) }}</dd>
+%%   } else if let PriceModel::Formula { a, b, c } = price {
+      <dd>Formula: a={{ a }}, b={{ b }}, c={{ c }}</dd>
+%%   }
+%% } else {
+      <dd>free</dd>
+%% }
+      <dt>amount</dt>
+%% if let Some(amount) = terms.amount {
+      <dd>{{ self.pile(amount) }}</dd>
+%% } else {
+      <dd>none</dd>
+%% }
+      <dt>mints</dt>
+      <dd>{{ self.entry.state.mints }}</dd>
+      <dt>cap</dt>
+      <dd>{{ terms.cap.unwrap_or_default() }}</dd>
+      <dt>remaining</dt>
+      <dd>{{ terms.cap.unwrap_or_default() - self.entry.state.mints }}</dd>
+      <dt>mintable</dt>
+      <dd>{{ self.mintable }}</dd>
+    </dl>
+  </dd>
+%% } else {
+  <dd>no</dd>
+%% }
+  <dt>liquidity pool</dt>
+%% if let Some(pool) = self.entry.pool {
+  <dd>
+    <dl>
+      <dt>base supply</dt>
+      <dd>{{ self.relic(pool.base_supply) }}</dd>
+      <dt>quote supply</dt>
+      <dd>{{ self.pile(pool.quote_supply) }}</dd>
+      <dt>price</dt>
+      <dd>{{ self.relic(pool.lossy_price()) }}</dd>
+    </dl>
+  </dd>
+%% } else {
+  <dd>no</dd>
+%% }
+  <dt>divisibility</dt>
+  <dd>{{ Enshrining::DIVISIBILITY }}</dd>
+%% if let Some(symbol) = self.entry.symbol {
+  <dt>symbol</dt>
+  <dd>{{ symbol }}</dd>
+%% }
+  <dt>deploy</dt>
+  <dd><a class="monospace" href="/tx/{{ self.entry.enshrining }}">{{ self.entry.enshrining }}</a></dd>
+%% if let Some(owner) = self.owner {
+  <dt>owner</dt>
+  <dd><a class="monospace" href="/inscription/{{ owner }}">{{ owner }}</a></dd>
+%% }
+</dl>

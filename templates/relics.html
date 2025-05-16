@@ -1,0 +1,18 @@
+<h1>Relics</h1>
+<ul>
+%% for (id, sealing, entry) in &self.entries {
+  <li><a href=/relic/{{ entry.spaced_relic }}>{{ entry.spaced_relic }}</a></li>
+%% }
+</ul>
+<div class=center>
+  %% if let Some(prev) = self.prev {
+  <a class=prev href=/relics/{{prev}}>prev</a>
+  %% } else {
+  prev
+  %% }
+  %% if let Some(next) = self.next {
+  <a class=next href=/relics/{{next}}>next</a>
+  %% } else {
+  next
+  %% }
+</div>

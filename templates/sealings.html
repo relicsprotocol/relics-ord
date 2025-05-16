@@ -1,0 +1,24 @@
+<h1>Tickers</h1>
+<ul>
+  %% for (inscription, enshrining_tx) in &self.entries {
+  <li>
+    <a href="/inscription/{{ inscription.id }}">{{ inscription.id }}</a>
+    %% if let Some(txid) = enshrining_tx {
+    <br>
+    Launched: <a href="/tx/{{ txid }}">{{ txid }}</a>
+    %% }
+  </li>
+  %% }
+</ul>
+<div class="center">
+  %% if let Some(prev) = self.prev {
+  <a class="prev" href="/sealings/{{ prev }}">prev</a>
+  %% } else {
+  prev
+  %% }
+  %% if let Some(next) = self.next {
+  <a class="next" href="/sealings/{{ next }}">next</a>
+  %% } else {
+  next
+  %% }
+</div>

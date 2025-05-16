@@ -1,0 +1,8 @@
+<h1>Tick</h1>
+<ul>
+    <a href="/inscription/{{ self.inscription.id }}">{{ self.inscription.id }}</a>
+    %% if let Some(txid) = self.enshrining_tx {
+    <br>
+    Launched: <a href="/tx/{{ txid }}">{{ txid }}</a>
+    %% }
+</ul>
