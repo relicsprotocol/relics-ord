@@ -174,6 +174,12 @@ pub struct TransactionInfo {
   pub starting_timestamp: u128,
 }
 
+#[derive(Serialize)]
+pub(crate) struct BlockHashAndConfirmations {
+  pub(crate) hash: Option<BlockHash>,
+  pub(crate) confirmations: Option<u32>,
+}
+
 pub(crate) trait BitcoinCoreRpcResultExt<T> {
   fn into_option(self) -> Result<Option<T>>;
 }
@@ -2095,6 +2101,20 @@ impl Index {
     }
 
     self.client.get_raw_transaction(&txid, None).into_option()
+  }
+
+  pub(crate) fn get_transaction_block_hash(
+    &self,
+    txid: Txid,
+  ) -> Result<Option<BlockHashAndConfirmations>> {
+    if let Ok(result) = self.client.get_raw_transaction_info(&txid, None) {
+      Ok(Some(BlockHashAndConfirmations {
+        hash: result.blockhash,
+        confirmations: result.confirmations,
+      }))
+    } else {
+      Ok(None)
+    }
   }
 
   pub fn find(&self, sat: Sat) -> Result<Option<SatPoint>> {

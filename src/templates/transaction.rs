@@ -2,7 +2,9 @@ use super::*;
 
 #[derive(Boilerplate, Debug, PartialEq, Serialize, Deserialize)]
 pub struct TransactionHtml {
+  pub block_hash: Option<BlockHash>,
   pub chain: Chain,
+  pub confirmations: Option<u32>,
   pub etching: Option<SpacedRune>,
   pub enshrining: Option<SpacedRelic>,
   pub inscription_count: u32,
@@ -48,7 +50,9 @@ mod tests {
 
     pretty_assert_eq!(
       TransactionHtml {
+        block_hash: None,
         chain: Chain::Mainnet,
+        confirmations: None,
         etching: None,
         enshrining: None,
         inscription_count: 0,

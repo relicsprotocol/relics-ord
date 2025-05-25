@@ -1404,6 +1404,14 @@ impl Server {
         .get_transaction(txid)?
         .ok_or_not_found(|| format!("transaction {txid}"))?;
 
+      let mut block_hash = None;
+      let mut confirmations = None;
+
+      if let Some(block_hash_info) = index.get_transaction_block_hash(txid)? {
+        block_hash = block_hash_info.hash;
+        confirmations = block_hash_info.confirmations;
+      }
+
       let inscription_count = index.inscription_count(txid)?;
       let etching = index.get_etching(txid)?;
       let enshrining = index.get_enshrining(txid)?;
@@ -1411,7 +1419,9 @@ impl Server {
 
       Ok(if accept_json {
         Json(api::Transaction {
+          block_hash,
           chain: server_config.chain,
+          confirmations,
           etching,
           enshrining,
           inscription_count,
@@ -1422,7 +1432,9 @@ impl Server {
         .into_response()
       } else {
         TransactionHtml {
+          block_hash,
           chain: server_config.chain,
+          confirmations,
           etching,
           enshrining,
           inscription_count,

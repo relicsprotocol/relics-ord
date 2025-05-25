@@ -467,18 +467,17 @@ fn get_transaction() {
 
   assert_eq!(response.status(), StatusCode::OK);
 
-  assert_eq!(
-    serde_json::from_str::<api::Transaction>(&response.text().unwrap()).unwrap(),
-    api::Transaction {
-      chain: Chain::Mainnet,
-      etching: None,
-      enshrining: None,
-      inscription_count: 0,
-      transaction,
-      txid,
-      events: vec![],
-    }
-  );
+  let api_tx: api::Transaction = serde_json::from_str(&response.text().unwrap()).unwrap();
+
+  // block_hash can be anything, but must exist
+  assert!(api_tx.block_hash.is_some());
+
+  // the rest must match exactly
+  assert_eq!(api_tx.chain, Chain::Mainnet);
+  assert_eq!(api_tx.confirmations, Some(0));
+  assert_eq!(api_tx.transaction, transaction);
+  assert_eq!(api_tx.txid, txid);
+  assert!(api_tx.events.is_empty());
 }
 
 #[test]
