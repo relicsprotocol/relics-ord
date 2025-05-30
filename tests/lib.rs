@@ -624,6 +624,7 @@ fn relic_enshrine_curved(
   relic: SpacedRelic,
   lp_fee: u16,
   max_unmints: u32,
+  seed: u128,
 ) -> RelicId {
   let command = format!(
     r#"
@@ -631,18 +632,17 @@ fn relic_enshrine_curved(
         --index-relics
         wallet enshrine
         --fee-rate 1
-        --mint-amount 20
-        --mint-cap 10
-        --formula-a 10000000000
-        --formula-b 990000000000
-        --formula-c 100
+        --mint-amount 1000
+        --mint-cap 16800
+        --formula-a 25084410
+        --formula-b 6324
         --relic {}
         --symbol T
-        --seed 1000
+        --seed {}
         --lp-fee {}
         --max-unmints {}
     "#,
-    relic, lp_fee, max_unmints,
+    relic, seed, lp_fee, max_unmints,
   );
 
   let output = CommandBuilder::new(command)

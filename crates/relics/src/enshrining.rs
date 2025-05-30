@@ -1,6 +1,7 @@
 #![allow(clippy::eq_op)]
 #![allow(clippy::no_effect)]
 #![allow(clippy::identity_op)]
+
 use super::*;
 
 #[derive(Default, Serialize, Deserialize, Debug, PartialEq, Copy, Clone, Eq)]
@@ -35,16 +36,39 @@ pub enum PriceModel {
   // Legacy: a fixed price as a number.
   Fixed(u128),
   // New: formula pricing.
-  Formula { a: u128, b: u128, c: u128 },
+  Formula { a: u128, b: u128 },
 }
 
 impl PriceModel {
   pub fn compute_price(&self, x: u128) -> Option<u128> {
     match *self {
       PriceModel::Fixed(price) => Some(price),
-      PriceModel::Formula { a, b, c } => {
-        let denom = c.checked_add(x)?;
-        (denom > 0).then(|| a.saturating_sub(b / denom))
+      PriceModel::Formula { a, b } => {
+        // no zero‐division
+        if b == 0 {
+          return None;
+        }
+
+        // compute supply_ratio = x/b
+        let supply_ratio = x as f64 / b as f64;
+        if !supply_ratio.is_finite() {
+          return None;
+        }
+
+        // avoid exp overflow: exp(supply_ratio) > u128::MAX/a when
+        // supply_ratio > ln(u128::MAX as f64 / a as f64)
+        let ln_bound = (u128::MAX as f64 / a as f64).ln();
+        if supply_ratio > ln_bound {
+          return None;
+        }
+
+        let price_f = (a as f64) * supply_ratio.exp();
+        // final safety check (should always pass here)
+        if !price_f.is_finite() || price_f > u128::MAX as f64 {
+          return None;
+        }
+
+        Some(price_f as u128)
       }
     }
   }
@@ -56,8 +80,8 @@ impl PriceModel {
       PriceModel::Formula { .. } => {
         let mut total = 0u128;
         for i in 0..count {
-          let x = start.checked_add(i as u128)?;
-          if let Some(computed_price) = self.compute_price(x) {
+          let idx = start.checked_add(i as u128)?; // mint index
+          if let Some(computed_price) = self.compute_price(idx) {
             total = total.checked_add(computed_price)?;
           } else {
             return None;
@@ -149,9 +173,9 @@ impl BoostTerms {
 }
 
 impl MintTerms {
-  // Compute price using the current mint count (x)
-  pub fn compute_price(&self, x: u128) -> Option<u128> {
-    self.price.and_then(|p| p.compute_price(x))
+  // computes the price for one mint (not one token)
+  pub fn compute_price(&self, minted: u128) -> Option<u128> {
+    self.price.and_then(|p| p.compute_price(minted))
   }
 
   /// Computes the total price for `count` mints starting at mint index `start`.
@@ -177,10 +201,25 @@ impl MintTerms {
         cap.checked_mul(p).is_some(),
         RelicFlaw::InvalidEnshriningTermsFixedPriceCapOverflow
       ),
-      Some(PriceModel::Formula { a, b, c }) => ensure!(
-        c > 0 && (b / c) <= a && cap <= 1_000_000,
-        RelicFlaw::InvalidEnshriningTermsInvalidPriceFormula
-      ),
+      Some(PriceModel::Formula { a, b }) => {
+        ensure!(
+          a > 0 && b > 0,
+          RelicFlaw::InvalidEnshriningTermsInvalidPriceFormula
+        );
+        let f_max = u128::MAX as f64;
+        let ln_bound = (f_max / a as f64).ln();
+        let raw = b as f64 * ln_bound;
+        // clamp so we never cast > u128::MAX
+        let max_cap = if raw >= f_max {
+          u128::MAX
+        } else {
+          raw.floor() as u128
+        };
+        ensure!(
+          cap <= max_cap,
+          RelicFlaw::InvalidEnshriningTermsInvalidPriceFormula
+        );
+      }
       None => return Err(RelicFlaw::InvalidEnshriningTermsMissingPrice),
     }
 
@@ -247,6 +286,13 @@ impl Enshrining {
       .max_supply()
       .ok_or(RelicFlaw::InvalidEnshriningMaxSupplyCalculation)?;
 
+    if terms.max_unmints.unwrap_or_default() > 0 {
+      ensure!(
+        self.boost_terms.is_none(),
+        RelicFlaw::InvalidEnshriningBoostNotUnmintable
+      );
+    }
+
     // Subsidy ↔ price rules
     match (self.subsidy, terms.price) {
       (Some(s), Some(PriceModel::Fixed(p))) => {
@@ -276,71 +322,53 @@ mod tests {
 
   #[test]
   fn test_price_model_formula() {
-    // price = a - b / (mints + c)
-    let mut formula_price = PriceModel::Formula { a: 10, b: 5, c: 2 };
-    assert_eq!(formula_price.compute_price(0), Some(10 - 5 / (0 + 2)));
-    assert_eq!(formula_price.compute_price(1), Some(10 - 5 / (1 + 2)));
-    assert_eq!(formula_price.compute_price(2), Some(10 - 5 / (2 + 2)));
-    assert_eq!(formula_price.compute_price(3), Some(10 - 5 / (3 + 2)));
-    assert_eq!(formula_price.compute_price(8), Some(10 - 5 / (8 + 2)));
-    assert_eq!(formula_price.compute_price(47), Some(10 - 5 / (47 + 2)));
-    assert_eq!(formula_price.compute_price(999), Some(10 - 5 / (999 + 2)));
+    // a = 1, b = 1: price = e^(x)
+    let mut m = PriceModel::Formula { a: 1, b: 1 };
+    assert_eq!(m.compute_price(0), Some(1)); // e^0 = 1
+    assert_eq!(m.compute_price(1), Some(2)); // ⌊e^1⌋ = 2
+    assert_eq!(m.compute_price(2), Some(7)); // ⌊e^2⌋ = 7
+    assert_eq!(m.compute_price(3), Some(20)); // ⌊e^3⌋ = 20
+    assert_eq!(m.compute_price(4), Some(54)); // ⌊e^4⌋ = 54
 
-    formula_price = PriceModel::Formula {
-      a: 1000,
-      b: 500,
-      c: 1,
-    };
+    // a = 10, b = 2: price = 10 * e^(x/2)
+    m = PriceModel::Formula { a: 10, b: 2 };
+    assert_eq!(m.compute_price(0), Some(10)); // 10*e^0 = 10
+    assert_eq!(m.compute_price(1), Some(16)); // ⌊10*e^0.5⌋ = 16
+    assert_eq!(m.compute_price(2), Some(27)); // ⌊10*e^1⌋ = 27
+    assert_eq!(m.compute_price(4), Some(73)); // ⌊10*e^2⌋ = 73
 
-    assert_eq!(formula_price.compute_price(0), Some(1000 - 500 / (0 + 1)));
-    assert_eq!(formula_price.compute_price(1), Some(1000 - 500 / (1 + 1)));
-    assert_eq!(formula_price.compute_price(10), Some(1000 - 500 / (10 + 1)));
-    assert_eq!(
-      formula_price.compute_price(500),
-      Some(1000 - 500 / (500 + 1))
-    );
-    assert_eq!(
-      formula_price.compute_price(50_000),
-      Some(1000 - 500 / (50_000 + 1))
-    );
+    // b = 0 → None
+    assert_eq!(PriceModel::Formula { a: 5, b: 0 }.compute_price(123), None);
+    // overflow case: supply_ratio > ln(u128::MAX/a) → None
+    assert_eq!(PriceModel::Formula { a: 1, b: 1 }.compute_price(89), None);
   }
 
   #[test]
   fn test_price_model_formula_multi_mint() {
     let formula = PriceModel::Formula {
-      a: 500,
-      b: 1000,
-      c: 1,
+      a: 29_276_332,
+      b: 6_994,
     };
 
-    assert_eq!(formula.compute_total_price(0, 3), Some(167));
-    assert_eq!(formula.compute_total_price(3, 2), Some(550));
-    assert_eq!(formula.compute_total_price(10, 5), Some(2114));
-    assert_eq!(formula.compute_total_price(100, 2), Some(982));
-    assert_eq!(formula.compute_total_price(50000, 2), Some(1000));
+    assert_eq!(formula.compute_total_price(0, 3), Some(87_841_555));
+    assert_eq!(formula.compute_total_price(3, 3), Some(87_879_241));
+    assert_eq!(formula.compute_total_price(10, 5), Some(146_633_032));
+    assert_eq!(formula.compute_total_price(15000, 1), Some(250_003_485));
   }
 
   #[test]
   fn test_formula_with_starting_price_exact() {
-    let formula = PriceModel::Formula {
-      a: 10000,
-      b: 50000,
-      c: 10,
-    };
+    let formula = PriceModel::Formula { a: 10, b: 1 };
 
-    assert_eq!(formula.compute_price(0), Some(5000));
-    assert_eq!(formula.compute_price(1), Some(5455));
-    assert_eq!(formula.compute_price(2), Some(5834));
+    assert_eq!(formula.compute_price(0), Some(10));
+    assert_eq!(formula.compute_price(1), Some(27));
+    assert_eq!(formula.compute_price(2), Some(73));
   }
 
   #[test]
   fn test_zero_division_protection() {
-    let div_zero_formula = PriceModel::Formula {
-      a: 1000,
-      b: 500,
-      c: 0,
-    };
-    assert_eq!(div_zero_formula.compute_price(0), None);
-    assert_eq!(div_zero_formula.compute_price(1), Some(500));
+    let div_zero_formula = PriceModel::Formula { a: 1, b: 1 };
+    assert_eq!(div_zero_formula.compute_price(100), None);
+    assert_eq!(div_zero_formula.compute_price(10), Some(22_026));
   }
 }

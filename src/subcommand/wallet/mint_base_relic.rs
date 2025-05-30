@@ -25,6 +25,7 @@ pub struct Output {
   pub pile: Pile,
   pub relic: Option<SpacedRelic>, // Keep consistent output structure, maybe remove later?
   pub operation: String,          // "mint_base"
+  pub price: u128,
 }
 
 impl MintBaseRelic {
@@ -169,6 +170,7 @@ impl MintBaseRelic {
       },
       relic: Some(base_token), // Return the base token relic
       operation: "mint_base".to_string(),
+      price: 0,
     })))
   }
 }

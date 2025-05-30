@@ -1,18 +1,18 @@
 [package]
-name = "ord"
-description = "◉ Ordinal wallet and block explorer"
-version = "0.21.3"
+name = "relics-ord"
+description = "⟁ Relics wallet and block explorer"
+version = "0.22.0"
 license = "CC0-1.0"
 edition = "2021"
 autotests = false
-homepage = "https://github.com/ordinals/ord"
-repository = "https://github.com/ordinals/ord"
+homepage = "https://github.com/relicsprotocol/relics-ord"
+repository = "https://github.com/relicsprotocol/relics-ord"
 autobins = false
 rust-version = "1.76.0"
 
 [package.metadata.deb]
-copyright = "The Ord Maintainers"
-maintainer = "The Ord Maintainers"
+copyright = "The (Relics) Ord Maintainers"
+maintainer = "The (Relics) Ord Maintainers"
 
 [workspace]
 members = [".", "crates/*"]

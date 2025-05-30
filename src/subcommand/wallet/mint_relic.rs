@@ -39,6 +39,7 @@ pub struct Output {
   pub address: Option<Address<NetworkUnchecked>>, // Address receiving relics (mint) or base relics (unmint)
   pub pile: Pile,                                 // Pile of minted relics or received base relics
   pub relic: Option<SpacedRelic>,                 // The relic that was minted or unminted
+  pub price: u128, // Total price paid (for mint) or received (for unmint)
 }
 
 impl MintRelic {
@@ -246,6 +247,7 @@ impl MintRelic {
           symbol: base_relic_entry.symbol, // Base relic symbol
         },
         relic: Some(self.relic),
+        price,
       })))
     } else {
       let (id, entry, _) = wallet
@@ -450,6 +452,7 @@ impl MintRelic {
           symbol: entry.symbol,
         },
         relic: Some(self.relic),
+        price: total_price_with_slippage,
       })))
     }
   }

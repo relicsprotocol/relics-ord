@@ -1086,8 +1086,7 @@ fn parse_json_to_relic(json_value: serde_json::Value) -> Result<api::Relic> {
       Some(Value::Object(map)) => {
         let a = parse_u128(map.get("a").ok_or_else(|| anyhow!("Missing 'a'"))?)?;
         let b = parse_u128(map.get("b").ok_or_else(|| anyhow!("Missing 'b'"))?)?;
-        let c = parse_u128(map.get("c").ok_or_else(|| anyhow!("Missing 'c'"))?)?;
-        Ok(Some(PriceModel::Formula { a, b, c }))
+        Ok(Some(PriceModel::Formula { a, b }))
       }
       _ => Err(anyhow!("Invalid price model format")),
     }

@@ -67,7 +67,7 @@ fn enshrine_curved_relic_works() {
   mint_base(&core, &ord);
   let relic = SpacedRelic::from_str("BASIC•TEST•RELIC").unwrap();
   seal(&core, &ord, relic);
-  relic_enshrine_curved(&core, &ord, relic, 0, 0);
+  relic_enshrine_curved(&core, &ord, relic, 0, 0, 4_200_000);
 }
 
 #[test]
@@ -103,7 +103,7 @@ fn mint_curved_relic_works() {
   let base = SpacedRelic::from_str("MBTC").unwrap();
   let relic = SpacedRelic::from_str("BASIC•TEST•RELIC").unwrap();
   seal(&core, &ord, relic);
-  relic_enshrine_curved(&core, &ord, relic, 0, 0);
+  relic_enshrine_curved(&core, &ord, relic, 0, 0, 4_200_000);
 
   relic_mint(&core, &ord, relic, 1, None, None);
   relic_mint(&core, &ord, relic, 1, None, None);
@@ -118,12 +118,12 @@ fn mint_curved_relic_works() {
   assert!(relics.contains_key(&relic));
   let relic_balance = relics.get(&relic).unwrap();
   assert_eq!(relic_balance.scale, 0);
-  assert_eq!(relic_balance.value, 60);
+  assert_eq!(relic_balance.value, 3000);
 
   // Check base balance is reduced by 1 (sealing) + 0.01 (mint)
   assert!(relics.contains_key(&base));
   let base_balance = relics.get(&base).unwrap();
-  assert_eq!(base_balance.value, 65351286255);
+  assert_eq!(base_balance.value, 65402973487);
   assert_eq!(base_balance.scale, 7);
 }
 
@@ -204,7 +204,7 @@ fn mint_relic_with_zero_slippage_works() {
   // create a new relic
   let relic = SpacedRelic::from_str("BASIC•TEST•RELIC").unwrap();
   seal(&core, &ord, relic);
-  relic_enshrine_curved(&core, &ord, relic, 0, 0);
+  relic_enshrine_curved(&core, &ord, relic, 0, 0, 4_200_000);
 
   relic_mint(&core, &ord, relic, 1, None, Some(0));
 
@@ -216,7 +216,7 @@ fn mint_relic_with_zero_slippage_works() {
   assert!(relics.contains_key(&relic));
   let relic_balance = relics.get(&relic).unwrap();
   assert_eq!(relic_balance.scale, 0);
-  assert_eq!(relic_balance.value, 20);
+  assert_eq!(relic_balance.value, 1000);
 }
 
 #[test]
@@ -228,7 +228,7 @@ fn multi_mint_curved_relic_works() {
   let base = SpacedRelic::from_str("MBTC").unwrap();
   let relic = SpacedRelic::from_str("BASIC•TEST•RELIC").unwrap();
   seal(&core, &ord, relic);
-  relic_enshrine_curved(&core, &ord, relic, 0, 0);
+  relic_enshrine_curved(&core, &ord, relic, 0, 0, 4_200_000);
 
   relic_mint(&core, &ord, relic, 3, None, None);
 
@@ -240,12 +240,12 @@ fn multi_mint_curved_relic_works() {
   assert!(relics.contains_key(&relic));
   let relic_balance = relics.get(&relic).unwrap();
   assert_eq!(relic_balance.scale, 0);
-  assert_eq!(relic_balance.value, 60);
+  assert_eq!(relic_balance.value, 3000);
 
   // Check base balance is reduced by 1 (sealing) + 0.01 (mint)
   assert!(relics.contains_key(&base));
   let base_balance = relics.get(&base).unwrap();
-  assert_eq!(base_balance.value, 65351286255);
+  assert_eq!(base_balance.value, 65402973487);
   assert_eq!(base_balance.scale, 7);
 }
 
@@ -281,73 +281,103 @@ fn multi_mint_free_relic_breaks() {
 }
 
 #[test]
-fn launch_curved_relic_works() {
-  let (core, ord) = setup();
-  mint_base(&core, &ord);
+fn launch_curved_relic_swap_price_comparison() {
+  fn compute_swap_spent(enshrine_amt: u64) -> u128 {
+    let (core, ord) = setup();
+    for _ in 0..4 {
+      mint_base(&core, &ord);
+    }
+    let base = SpacedRelic::from_str("MBTC").unwrap();
+    let relic = SpacedRelic::from_str("BASIC•TEST•RELIC").unwrap();
+    seal(&core, &ord, relic);
+    relic_enshrine_curved(&core, &ord, relic, 0, 0, u128::from(enshrine_amt));
 
-  // create a new relic
-  let base = SpacedRelic::from_str("MBTC").unwrap();
-  let relic = SpacedRelic::from_str("BASIC•TEST•RELIC").unwrap();
+    // drive price upward through repeated mints
+    for _ in 0..167 {
+      core.mine_blocks(1);
+      CommandBuilder::new(format!(
+        "--chain regtest --index-relics wallet mint-relic --fee-rate 1 \
+                 --relic {} --num-mints 100",
+        relic
+      ))
+      .core(&core)
+      .ord(&ord)
+      .run_and_deserialize_output::<ord::subcommand::wallet::mint_relic::Output>();
+      core.mine_blocks(1);
+      ord.sync_server();
+    }
+    core.mine_blocks(1);
+    CommandBuilder::new(format!(
+      "--chain regtest --index-relics wallet mint-relic --fee-rate 1 \
+             --relic {} --num-mints 99",
+      relic
+    ))
+    .core(&core)
+    .ord(&ord)
+    .run_and_deserialize_output::<ord::subcommand::wallet::mint_relic::Output>();
+    core.mine_blocks(1);
+    ord.sync_server();
 
-  seal(&core, &ord, relic);
-  relic_enshrine_curved(&core, &ord, relic, 0, 0);
+    core.mine_blocks(1);
+    CommandBuilder::new(format!(
+      "--chain regtest --index-relics wallet mint-relic --fee-rate 1 \
+             --relic {} --num-mints 1",
+      relic
+    ))
+    .core(&core)
+    .ord(&ord)
+    .run_and_deserialize_output::<ord::subcommand::wallet::mint_relic::Output>();
+    core.mine_blocks(1);
+    ord.sync_server();
 
-  // Perform 10 mints in a loop
-  for _ in 0..10 {
-    relic_mint(&core, &ord, relic, 1, None, None);
-  }
-
-  // Verify the balance
-  let balance = relic_balance(&core, &ord);
-
-  // Check that the relic exists in the balance
-  assert!(balance.relics.is_some());
-  let relics = balance.relics.unwrap();
-  assert!(relics.contains_key(&relic));
-  let relic_balance = relics.get(&relic).unwrap();
-  assert_eq!(relic_balance.scale, 0);
-  assert_eq!(relic_balance.value, 200); // 10 mints * 20 per mint
-
-  // Check base balance is reduced
-  assert!(relics.contains_key(&base));
-  let base_balance = relics.get(&base).unwrap();
-  assert_eq!(base_balance.value, 648913509794);
-  assert_eq!(base_balance.scale, 8);
-
-  let command = format!(
-    r#"
-        --chain regtest
-        --index-relics
-        wallet swap
-        --fee-rate 1
-        --input {}
-        --input-amount 100
-        --output {}
-        --exact-input
-    "#,
-    base, relic
-  );
-
-  let output = CommandBuilder::new(command)
+    // capture base-token balances before and after swap
+    let before = *relic_balance(&core, &ord)
+      .relics
+      .unwrap()
+      .get(&base)
+      .unwrap();
+    CommandBuilder::new(format!(
+      "--chain regtest --index-relics wallet swap --fee-rate 1 \
+             --input {} --input-amount 1000 --output {} --output-amount 1000",
+      base, relic
+    ))
     .core(&core)
     .ord(&ord)
     .run_and_deserialize_output::<swap::Output>();
+    let after = *relic_balance(&core, &ord)
+      .relics
+      .unwrap()
+      .get(&base)
+      .unwrap();
 
-  pretty_assert_eq!(output.input, base);
-  pretty_assert_eq!(output.output, relic);
+    // normalize to common scale and compute spent
+    let max_scale = before.scale.max(after.scale);
+    let norm = |v: u128, s: u8| {
+      if s < max_scale {
+        v * 10u128.pow((max_scale - s) as u32)
+      } else {
+        v
+      }
+    };
+    norm(before.value, before.scale) - norm(after.value, after.scale)
+  }
 
-  let balance = crate::relic_balance(&core, &ord);
-  let relics = balance.relics.unwrap();
+  let alt_price = compute_swap_spent(4_200_000 / 2);
+  let std_price = compute_swap_spent(4_200_000);
+  let high_price = compute_swap_spent(4_200_000 * 2);
 
-  // Check base balance is decreased by 100
-  assert!(relics.contains_key(&base));
-  let new_base_balance = relics.get(&base).unwrap();
-  assert_eq!(new_base_balance.scale, 8);
-  assert_eq!(new_base_balance.value, 638913509794);
+  println!("alt_price  = {}", alt_price);
+  println!("std_price  = {}", std_price);
+  println!("high_price = {}", high_price);
 
-  let relic_balance = relics.get(&relic).unwrap();
-  assert_eq!(relic_balance.scale, 8);
-  assert_eq!(relic_balance.value, 85826326873);
+  // expect high seed to yield lowest swap price, and low seed the highest
+  assert!(
+    high_price < std_price && std_price < alt_price,
+    "swap prices order wrong: high={} < standard={} < alt={}",
+    high_price,
+    std_price,
+    alt_price
+  );
 }
 
 #[test]
@@ -369,9 +399,9 @@ fn unmint_relic_works() {
   assert!(balance.relics.is_some());
   let relics = balance.relics.unwrap();
   assert!(relics.contains_key(&relic));
-  let relic_balance = relics.get(&relic).unwrap();
-  assert_eq!(relic_balance.scale, 0);
-  assert_eq!(relic_balance.value, 20);
+  let relic_bal = relics.get(&relic).unwrap();
+  assert_eq!(relic_bal.scale, 0);
+  assert_eq!(relic_bal.value, 20);
 
   // Check base balance is reduced by 1 (sealing) + 0.01 (mint)
   assert!(relics.contains_key(&base));
@@ -381,7 +411,7 @@ fn unmint_relic_works() {
 
   relic_unmint(&core, &ord, relic);
 
-  let new_balance = crate::relic_balance(&core, &ord);
+  let new_balance = relic_balance(&core, &ord);
   // Check that the relic exists in the balance
   assert!(new_balance.relics.is_some());
   let relics = new_balance.relics.unwrap();

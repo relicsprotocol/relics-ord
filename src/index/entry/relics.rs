@@ -129,13 +129,15 @@ impl RelicEntry {
     }
 
     let mut results = Vec::with_capacity(actual_mints as usize);
-    for x in current_mints..current_mints + u128::from(actual_mints) {
+    for i in 0..actual_mints {
+      let mint_idx = current_mints + u128::from(i);
       let price = terms
-        .compute_price(x)
+        .compute_price(mint_idx)
         .ok_or(RelicError::PriceComputationError)?;
       let amount = terms.amount.unwrap_or_default();
       results.push((amount, price));
     }
+
     Ok(results)
   }
 
@@ -265,8 +267,8 @@ impl RelicEntry {
         Some(PriceModel::Fixed(fixed)) => self.state.mints * fixed,
         Some(PriceModel::Formula { .. }) => {
           let mut total: u128 = 0;
-          for x in 0..self.state.mints {
-            total = total.saturating_add(terms.compute_price(x).unwrap_or(0));
+          for mint_index in 0..self.state.mints {
+            total = total.saturating_add(terms.compute_price(mint_index).unwrap_or(0));
           }
           total
         }
@@ -285,10 +287,9 @@ type MintTermsValue = (
   Option<u32>,  // max unmints
   Option<u128>, // stored price:
   //   - Some(n) with n != 0 represents PriceModel::Fixed(n)
-  //   - Some(0) indicates formula pricing (with a, b, c below)
+  //   - Some(0) indicates formula pricing (with a, b below)
   Option<u128>, // formula_a (for formula pricing)
   Option<u128>, // formula_b (for formula pricing)
-  Option<u128>, // formula_c (for formula pricing)
   Option<u128>, // seed
   Option<u8>,   // tx cap
 );
@@ -305,7 +306,6 @@ impl Entry for MintTerms {
       price_type,
       price_fixed_or_a,
       formula_b,
-      formula_c,
       seed,
       tx_cap,
     ): Self::Value,
@@ -313,8 +313,8 @@ impl Entry for MintTerms {
     let price = match price_type {
       Some(1) => price_fixed_or_a.map(PriceModel::Fixed),
       Some(2) => {
-        if let (Some(a), Some(b), Some(c)) = (price_fixed_or_a, formula_b, formula_c) {
-          Some(PriceModel::Formula { a, b, c })
+        if let (Some(a), Some(b)) = (price_fixed_or_a, formula_b) {
+          Some(PriceModel::Formula { a, b })
         } else {
           None
         }
@@ -333,10 +333,10 @@ impl Entry for MintTerms {
   }
 
   fn store(self) -> Self::Value {
-    let (price_type, price_fixed_or_a, formula_b, formula_c) = match self.price {
-      Some(PriceModel::Fixed(p)) => (Some(1), Some(p), None, None),
-      Some(PriceModel::Formula { a, b, c }) => (Some(2), Some(a), Some(b), Some(c)),
-      None => (None, None, None, None),
+    let (price_type, price_fixed_or_a, formula_b) = match self.price {
+      Some(PriceModel::Fixed(p)) => (Some(1), Some(p), None),
+      Some(PriceModel::Formula { a, b }) => (Some(2), Some(a), Some(b)),
+      None => (None, None, None),
     };
     (
       self.amount,
@@ -346,7 +346,6 @@ impl Entry for MintTerms {
       price_type,
       price_fixed_or_a,
       formula_b,
-      formula_c,
       self.seed,
       self.tx_cap,
     )
@@ -586,7 +585,6 @@ mod tests {
         None,
         Some(1),
         Some(8),
-        None,
         None,
         Some(22),
         None,

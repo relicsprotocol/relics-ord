@@ -23,11 +23,6 @@ pub(crate) struct Enshrine {
     help = "Formula price parameter b. Price = a - b/(c+x) where x is the mint index."
   )]
   formula_b: Option<u128>,
-  #[clap(
-    long,
-    help = "Formula price parameter c. Price = a - b/(c+x) where x is the mint index."
-  )]
-  formula_c: Option<u128>,
   #[clap(long, help = "Maximum transactions that can mint <RELIC>.")]
   tx_cap: Option<u8>,
   #[clap(
@@ -94,12 +89,11 @@ impl Enshrine {
 
     // Check that either fixed price or all formula parameters are provided, but not both
     let has_fixed_price = self.mint_price.is_some();
-    let has_formula =
-      self.formula_a.is_some() || self.formula_b.is_some() || self.formula_c.is_some();
+    let has_formula = self.formula_a.is_some() || self.formula_b.is_some();
 
     ensure!(
       has_fixed_price || has_formula,
-      "either mint_price or formula parameters (a, b, c) must be specified"
+      "either mint_price or formula parameters (a, b) must be specified"
     );
 
     ensure!(
@@ -109,8 +103,8 @@ impl Enshrine {
 
     if has_formula {
       ensure!(
-        self.formula_a.is_some() && self.formula_b.is_some() && self.formula_c.is_some(),
-        "all formula parameters (a, b, c) must be specified"
+        self.formula_a.is_some() && self.formula_b.is_some(),
+        "all formula parameters (a, b) must be specified"
       );
     }
 
@@ -125,7 +119,6 @@ impl Enshrine {
       PriceModel::Formula {
         a: self.formula_a.unwrap(),
         b: self.formula_b.unwrap(),
-        c: self.formula_c.unwrap(),
       }
     };
 

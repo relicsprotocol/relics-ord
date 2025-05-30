@@ -13,8 +13,7 @@ pub(super) enum Tag {
   Price = 14,
   PriceFormulaA = 16,
   PriceFormulaB = 18,
-  PriceFormulaC = 20,
-  // Base = 22, coming soon...
+  // Base = 20, coming soon...
   MaxUnmints = 24,
   BlockCap = 26,
   TxCap = 28,

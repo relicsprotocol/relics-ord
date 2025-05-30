@@ -315,20 +315,23 @@ mod tests {
   }
 
   #[test]
-  fn enshrine_and_mint_with_price_model_works() {
+  fn enshrine_and_mint_full_supply() {
     let context = Context::builder().arg("--index-relics").build();
 
-    let (_, mut entry_base) = context.mint_base_token(2, 1);
+    let (_, mut entry_base) = context.mint_base_token(4, 1);
 
     let (txid_enshrine, id) = context.enshrine(
       SpacedRelic::from_str("BASIC•TEST•RELIC").unwrap(),
       Enshrining {
         fee: Some(100),
         mint_terms: Some(MintTerms {
-          amount: Some(1000),
-          cap: Some(10),
-          price: Some(PriceModel::Formula { a: 10, b: 5, c: 2 }),
-          seed: Some(1000),
+          amount: Some(100_000_000_000),
+          cap: Some(16_800),
+          price: Some(PriceModel::Formula {
+            a: 8_045_250,
+            b: 4_001,
+          }),
+          seed: Some(1_000_000_000_000),
           max_unmints: Some(100),
           ..default()
         }),
@@ -336,65 +339,79 @@ mod tests {
       },
     );
 
-    // sealing fee is burned
-    entry_base.state.burned += 100000000;
-
+    entry_base.state.burned += 100_000_000; // sealing fee burned
     context.mine_blocks(1);
 
     let relic_id = RELIC_ID;
+    let mut remaining: u32 = 16_800;
+    let mut last_txid = None;
 
-    let txid_mint = context.relic_tx(
-      &context.relic_outpoints(vec![(relic_id, 5000)]),
-      1,
-      Keepsake {
-        mint: Some(MultiMint {
-          base_limit: 5000,
-          count: 1,
-          is_unmint: false,
-          relic: id,
-        }),
-        ..default()
-      },
-    );
+    // mint in batches of up to 255
+    while remaining > 0 {
+      let batch = remaining.min(255);
+      let txid = context.relic_tx(
+        &context.relic_outpoints(vec![(relic_id, 100_000_000)]),
+        1,
+        Keepsake {
+          mint: Some(MultiMint {
+            base_limit: 654_205_000_000,
+            count: batch as u8,
+            is_unmint: false,
+            relic: id,
+          }),
+          ..default()
+        },
+      );
+      last_txid = Some(txid);
+      remaining -= batch;
+      context.mine_blocks(1);
+    }
 
-    context.mine_blocks(1);
-
-    let entry_test_token = RelicEntry {
+    let txid_mint = last_txid.unwrap();
+    let entry_test = RelicEntry {
       block: id.block,
       enshrining: txid_enshrine,
       number: 1,
       spaced_relic: SpacedRelic::from_str("BASIC•TEST•RELIC").unwrap(),
       symbol: None,
-      owner_sequence_number: Some(2),
+      owner_sequence_number: Some(4),
       mint_terms: Some(MintTerms {
-        amount: Some(1000),
-        cap: Some(10),
-        price: Some(PriceModel::Formula { a: 10, b: 5, c: 2 }),
-        seed: Some(1000),
+        amount: Some(100_000_000_000),
+        cap: Some(16_800),
+        price: Some(PriceModel::Formula {
+          a: 8045250,
+          b: 4_001,
+        }),
+        seed: Some(1_000_000_000_000),
         max_unmints: Some(100),
         ..default()
       }),
       boost_terms: None,
       fee: 100,
       state: RelicState {
-        mints: 1,
+        mints: 16_800, // full cap minted
         ..default()
       },
-      pool: None,
+      pool: Some(Pool {
+        base_supply: 2111864182563,
+        quote_supply: 1000000000000,
+        fee_bps: 100,
+        subsidy: 0,
+      }),
       timestamp: id.block,
     };
 
-    // price = a - b / (mints + c)
-    #[allow(clippy::no_effect, clippy::identity_op)]
-    let expected_price: u128 = 10 - (5 / (0 + 2));
     context.assert_relics(
-      [(relic_id, entry_base), (id, entry_test_token)],
+      [(relic_id, entry_base), (id, entry_test)],
       [(
         OutPoint {
           txid: txid_mint,
           vout: 0,
         },
-        vec![(relic_id, 1308310000000 - expected_price), (id, 1000)],
+        vec![
+          (relic_id, 504_855_817_437), // spent ~ 21k base relics
+          (id, 1_680_000_000_000_000), // 16 800 × 100 000 000
+        ],
       )],
     );
   }
@@ -412,7 +429,7 @@ mod tests {
         mint_terms: Some(MintTerms {
           amount: Some(1000),
           cap: Some(10),
-          price: Some(PriceModel::Formula { a: 10, b: 5, c: 0 }),
+          price: Some(PriceModel::Formula { a: 100, b: 0 }),
           seed: Some(1000),
           max_unmints: Some(100),
           ..default()
@@ -427,98 +444,6 @@ mod tests {
 
     let relics = context.index.relics().unwrap_or_default().len();
     assert_eq!(relics, 1)
-  }
-
-  #[test]
-  fn multi_mint_with_price_model_works() {
-    let a = 10;
-    let b = 5;
-    let c = 2;
-    let nr_of_mints: u8 = 50;
-    // price = a - b / (mints + c)
-    let expected_price: u128 = (0..u128::from(nr_of_mints))
-      .map(|mint| a - (b / (mint + c)))
-      .sum();
-    let context = Context::builder().arg("--index-relics").build();
-
-    let (_, mut entry_base) = context.mint_base_token(2, 1);
-
-    let (txid_enshrine, id) = context.enshrine(
-      SpacedRelic::from_str("BASIC•TEST•RELIC").unwrap(),
-      Enshrining {
-        fee: Some(100),
-        mint_terms: Some(MintTerms {
-          amount: Some(1000),
-          cap: Some(100),
-          price: Some(PriceModel::Formula { a, b, c }),
-          seed: Some(1000),
-          max_unmints: Some(100),
-          ..default()
-        }),
-        ..default()
-      },
-    );
-
-    entry_base.state.burned += 100000000;
-
-    context.mine_blocks(1);
-
-    let relic_id = RELIC_ID;
-
-    let txid_mint = context.relic_tx(
-      &context.relic_outpoints(vec![(relic_id, expected_price)]),
-      1,
-      Keepsake {
-        mint: Some(MultiMint {
-          base_limit: expected_price,
-          count: nr_of_mints,
-          is_unmint: false,
-          relic: id,
-        }),
-        ..default()
-      },
-    );
-
-    context.mine_blocks(1);
-
-    let entry_test_token = RelicEntry {
-      block: id.block,
-      enshrining: txid_enshrine,
-      number: 1,
-      spaced_relic: SpacedRelic::from_str("BASIC•TEST•RELIC").unwrap(),
-      symbol: None,
-      owner_sequence_number: Some(2),
-      mint_terms: Some(MintTerms {
-        amount: Some(1000),
-        cap: Some(100),
-        price: Some(PriceModel::Formula { a, b, c }),
-        seed: Some(1000),
-        max_unmints: Some(100),
-        ..default()
-      }),
-      boost_terms: None,
-      fee: 100,
-      state: RelicState {
-        mints: u128::from(nr_of_mints),
-        ..default()
-      },
-      pool: None,
-      timestamp: id.block,
-    };
-
-    context.assert_relics(
-      [(relic_id, entry_base), (id, entry_test_token)],
-      [(
-        OutPoint {
-          txid: txid_mint,
-          vout: 0,
-        },
-        vec![
-          (relic_id, 1308310000000 - expected_price),
-          (id, u128::from(nr_of_mints) * 1000),
-        ],
-      )],
-    );
   }
 
   #[test]
@@ -542,7 +467,7 @@ mod tests {
         mint_terms: Some(MintTerms {
           amount: Some(1000),
           cap: Some(100),
-          price: Some(PriceModel::Formula { a, b, c }),
+          price: Some(PriceModel::Formula { a, b }),
           seed: Some(1000),
           max_unmints: Some(100),
           ..default()
@@ -583,7 +508,7 @@ mod tests {
       mint_terms: Some(MintTerms {
         amount: Some(1000),
         cap: Some(100),
-        price: Some(PriceModel::Formula { a, b, c }),
+        price: Some(PriceModel::Formula { a, b }),
         seed: Some(1000),
         max_unmints: Some(100),
         ..default()
@@ -606,133 +531,6 @@ mod tests {
           vout: 0,
         },
         vec![(relic_id, 1308310000000)],
-      )],
-    );
-  }
-
-  #[test]
-  fn multiple_mints_with_price_model_work() {
-    let a = 10;
-    let b = 5;
-    let c = 2;
-    let mut nr_of_mints: u8 = 50;
-    // price = a - b / (mints + c)
-    let mut expected_price: u128 = (0..u128::from(nr_of_mints))
-      .map(|mint| a - (b / (mint + c)))
-      .sum();
-    let context = Context::builder().arg("--index-relics").build();
-
-    let (_, mut entry_base) = context.mint_base_token(2, 1);
-
-    let (txid_enshrine, id) = context.enshrine(
-      SpacedRelic::from_str("BASIC•TEST•RELIC").unwrap(),
-      Enshrining {
-        fee: Some(100),
-        mint_terms: Some(MintTerms {
-          amount: Some(1000),
-          cap: Some(100),
-          price: Some(PriceModel::Formula { a, b, c }),
-          seed: Some(1000),
-          max_unmints: Some(100),
-          ..default()
-        }),
-        ..default()
-      },
-    );
-
-    entry_base.state.burned += 100000000;
-
-    context.mine_blocks(1);
-
-    let relic_id = RELIC_ID;
-
-    let mut txid_mint = context.relic_tx(
-      &context.relic_outpoints(vec![(relic_id, expected_price)]),
-      1,
-      Keepsake {
-        mint: Some(MultiMint {
-          base_limit: expected_price,
-          count: nr_of_mints,
-          is_unmint: false,
-          relic: id,
-        }),
-        ..default()
-      },
-    );
-
-    context.mine_blocks(1);
-
-    let mut entry_test_token = RelicEntry {
-      block: id.block,
-      enshrining: txid_enshrine,
-      number: 1,
-      spaced_relic: SpacedRelic::from_str("BASIC•TEST•RELIC").unwrap(),
-      symbol: None,
-      owner_sequence_number: Some(2),
-      mint_terms: Some(MintTerms {
-        amount: Some(1000),
-        cap: Some(100),
-        price: Some(PriceModel::Formula { a, b, c }),
-        seed: Some(1000),
-        max_unmints: Some(100),
-        ..default()
-      }),
-      boost_terms: None,
-      fee: 100,
-      state: RelicState {
-        mints: u128::from(nr_of_mints),
-        ..default()
-      },
-      pool: None,
-      timestamp: id.block,
-    };
-
-    let base_token_balance = 1308310000000 - expected_price;
-    context.assert_relics(
-      [(relic_id, entry_base), (id, entry_test_token)],
-      [(
-        OutPoint {
-          txid: txid_mint,
-          vout: 0,
-        },
-        vec![
-          (relic_id, base_token_balance),
-          (id, u128::from(nr_of_mints) * 1000),
-        ],
-      )],
-    );
-
-    expected_price = a - (b / (u128::from(nr_of_mints) + c));
-    nr_of_mints = 1;
-    txid_mint = context.relic_tx(
-      &context.relic_outpoints(vec![(relic_id, expected_price)]),
-      1,
-      Keepsake {
-        mint: Some(MultiMint {
-          base_limit: expected_price,
-          count: nr_of_mints,
-          is_unmint: false,
-          relic: id,
-        }),
-        ..default()
-      },
-    );
-
-    context.mine_blocks(1);
-
-    entry_test_token.state.mints += 1;
-
-    context.assert_relics(
-      [(relic_id, entry_base), (id, entry_test_token)],
-      [(
-        OutPoint {
-          txid: txid_mint,
-          vout: 0,
-        },
-        vec![
-          (relic_id, base_token_balance - expected_price),
-          (id, 51 * u128::from(nr_of_mints) * 1000),
-        ],
       )],
     );
   }

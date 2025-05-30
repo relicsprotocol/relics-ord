@@ -358,10 +358,6 @@ impl Context {
       relics,
       allocated,
     );
-    println!(
-      "requested Relic inputs {:?}, satisfied using Outpoints: {:#?}",
-      relics, outpoints
-    );
     outpoints
   }
 

@@ -105,10 +105,9 @@ impl Keepsake {
           .or_else(|| {
             let a = Tag::PriceFormulaA.take(&mut fields, |[a]| Some(a));
             let b = Tag::PriceFormulaB.take(&mut fields, |[b]| Some(b));
-            let c = Tag::PriceFormulaC.take(&mut fields, |[c]| Some(c));
 
-            if let (Some(a), Some(b), Some(c)) = (a, b, c) {
-              Some(PriceModel::Formula { a, b, c })
+            if let (Some(a), Some(b)) = (a, b) {
+              Some(PriceModel::Formula { a, b })
             } else {
               None
             }
@@ -228,11 +227,10 @@ impl Keepsake {
               // Fixed price: encode as a single integer with Tag::Price
               Tag::Price.encode([price], &mut payload);
             }
-            PriceModel::Formula { a, b, c } => {
+            PriceModel::Formula { a, b } => {
               // Formula pricing: encode each component with its own tag
               Tag::PriceFormulaA.encode([a], &mut payload);
               Tag::PriceFormulaB.encode([b], &mut payload);
-              Tag::PriceFormulaC.encode([c], &mut payload);
             }
           }
         }
@@ -1369,13 +1367,11 @@ mod tests {
         Tag::Amount.into(),
         100,
         Tag::Cap.into(),
-        100_000,
+        16_800,
         Tag::PriceFormulaA.into(),
-        10,
+        29_276_332,
         Tag::PriceFormulaB.into(),
-        5,
-        Tag::PriceFormulaC.into(),
-        2,
+        6994,
         Tag::Seed.into(),
         300,
         Tag::MultiMintRelic.into(),
@@ -1424,9 +1420,12 @@ mod tests {
           mint_terms: Some(MintTerms {
             amount: Some(100),
             block_cap: None,
-            cap: Some(100_000),
+            cap: Some(16_800),
             max_unmints: None,
-            price: Some(PriceModel::Formula { a: 10, b: 5, c: 2 }),
+            price: Some(PriceModel::Formula {
+              a: 29_276_332,
+              b: 6994
+            }),
             seed: Some(300),
             tx_cap: None,
           }),
@@ -1437,102 +1436,6 @@ mod tests {
           base_limit: u128::MAX,
           is_unmint: false,
           relic: relic_id_with_block(5, 0),
-        }),
-        swap: Some(Swap {
-          input: Some(relic_id(42)),
-          output: Some(relic_id(43)),
-          input_amount: Some(123),
-          output_amount: Some(456),
-          is_exact_input: true,
-        }),
-        pointer: Some(0),
-        claim: Some(0),
-      }),
-    );
-  }
-
-  #[test]
-  fn decipher_etching_with_all_etching_tags_and_curve() {
-    assert_eq!(
-      decipher(&[
-        Tag::Flags.into(),
-        Flag::Sealing.mask()
-          | Flag::Enshrining.mask()
-          | Flag::MintTerms.mask()
-          | Flag::Swap.mask()
-          | Flag::SwapExactInput.mask()
-          | Flag::MultiMint.mask(),
-        Tag::Symbol.into(),
-        'a'.into(),
-        Tag::Amount.into(),
-        100,
-        Tag::Cap.into(),
-        100_000,
-        Tag::PriceFormulaA.into(),
-        10,
-        Tag::PriceFormulaB.into(),
-        5,
-        Tag::PriceFormulaC.into(),
-        2,
-        Tag::Seed.into(),
-        300,
-        Tag::MultiMintCount.into(),
-        7,
-        Tag::MultiMintBaseLimit.into(),
-        100_000_000,
-        Tag::MultiMintRelic.into(),
-        10,
-        Tag::MultiMintRelic.into(),
-        2,
-        Tag::SwapInput.into(),
-        1,
-        Tag::SwapInput.into(),
-        42,
-        Tag::SwapOutput.into(),
-        1,
-        Tag::SwapOutput.into(),
-        43,
-        Tag::SwapInputAmount.into(),
-        123,
-        Tag::SwapOutputAmount.into(),
-        456,
-        Tag::Pointer.into(),
-        0,
-        Tag::Claim.into(),
-        0,
-        Tag::Body.into(),
-        1,
-        1,
-        2,
-        0,
-      ]),
-      RelicArtifact::Keepsake(Keepsake {
-        transfers: vec![Transfer {
-          id: relic_id(1),
-          amount: 2,
-          output: 0,
-        }],
-        sealing: true,
-        enshrining: Some(Enshrining {
-          boost_terms: None,
-          fee: None,
-          symbol: Some('a'),
-          mint_terms: Some(MintTerms {
-            amount: Some(100),
-            block_cap: None,
-            cap: Some(100_000),
-            max_unmints: None,
-            price: Some(PriceModel::Formula { a: 10, b: 5, c: 2 }),
-            seed: Some(300),
-            tx_cap: None,
-          }),
-          subsidy: None,
-        }),
-        mint: Some(MultiMint {
-          count: 7,
-          base_limit: 100_000_000,
-          is_unmint: false,
-          relic: relic_id_with_block(10, 2),
         }),
         swap: Some(Swap {
           input: Some(relic_id(42)),
@@ -1793,16 +1696,15 @@ mod tests {
           cap: Some(100_000),
           max_unmints: Some(10_000),
           price: Some(PriceModel::Formula {
-            a: 10000000000,
-            b: 990000000000,
-            c: 100,
+            a: 29276332,
+            b: 6994,
           }),
           seed: Some(200),
           tx_cap: Some(100),
         }),
         subsidy: Some(6_900_000_000_000),
       }),
-      72,
+      65,
     );
   }
 
@@ -2397,8 +2299,8 @@ mod tests {
       enshrining: Some(Enshrining {
         mint_terms: Some(MintTerms {
           amount: Some(100),
-          cap: Some(100_000),
-          price: Some(PriceModel::Formula { a: 1, b: 1, c: 1 }), // Formula price
+          cap: Some(10),
+          price: Some(PriceModel::Formula { a: 1, b: 1 }), // Formula price
           ..default()
         }),
         subsidy: Some(10_000),
@@ -2516,6 +2418,53 @@ mod tests {
     assert_eq!(
       decoded6,
       RelicArtifact::Keepsake(valid_no_subsidy_price_fixed_keepsake)
+    );
+  }
+
+  #[test]
+  fn boost_terms_with_max_unmints_creates_cenotaph() {
+    let invalid_boost_with_unmints = BoostTerms {
+      rare_chance: Some(5000),
+      rare_multiplier_cap: Some(10),
+      ultra_rare_chance: Some(1000),
+      ultra_rare_multiplier_cap: Some(20),
+    };
+
+    let invalid_enshrining = Enshrining {
+      boost_terms: Some(invalid_boost_with_unmints),
+      mint_terms: Some(MintTerms {
+        amount: Some(100),
+        cap: Some(100_000),
+        price: Some(PriceModel::Fixed(1)),
+        max_unmints: Some(50), // This should cause the validation to fail
+        ..default()
+      }),
+      ..default()
+    };
+
+    let invalid_keepsake = Keepsake {
+      transfers: Vec::new(),
+      enshrining: Some(invalid_enshrining),
+      ..default()
+    };
+
+    let script = invalid_keepsake.encipher();
+    let decoded = Keepsake::decipher(&Transaction {
+      input: Vec::new(),
+      output: vec![TxOut {
+        script_pubkey: script,
+        value: Amount::ZERO,
+      }],
+      lock_time: LockTime::ZERO,
+      version: Version(2),
+    })
+    .unwrap();
+
+    assert_eq!(
+      decoded,
+      RelicArtifact::Cenotaph(RelicCenotaph {
+        flaw: Some(RelicFlaw::InvalidEnshriningBoostNotUnmintable),
+      })
     );
   }
 }

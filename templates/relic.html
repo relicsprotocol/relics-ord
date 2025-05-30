@@ -27,8 +27,8 @@
 %% if let Some(price) = terms.price {
 %%   if let PriceModel::Fixed(fixed) = price {
       <dd>{{ self.relic(fixed) }}</dd>
-%%   } else if let PriceModel::Formula { a, b, c } = price {
-      <dd>Formula: a={{ a }}, b={{ b }}, c={{ c }}</dd>
+%%   } else if let PriceModel::Formula { a, b } = price {
+      <dd>Formula: a={{ a }}, b={{ b }}</dd>
 %%   }
 %% } else {
       <dd>free</dd>
